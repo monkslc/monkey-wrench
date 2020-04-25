@@ -42,17 +42,29 @@ pub enum Token {
 
 pub struct Lexer {
     chars: Vec<char>,
-    current_index: usize,
 }
 
 impl Lexer {
     pub fn new(content: &str) -> Lexer {
         Lexer {
             chars: content.chars().collect(),
-            current_index: 0,
         }
     }
 
+    pub fn tokens(&self) -> Tokens {
+        Tokens {
+            chars: &self.chars,
+            current_index: 0,
+        }
+    }
+}
+
+pub struct Tokens<'a> {
+    chars: &'a Vec<char>,
+    current_index: usize,
+}
+
+impl<'a> Tokens<'a> {
     pub fn take_char(&mut self) -> Option<char> {
         match self.chars.get(self.current_index) {
             Some(ch) => {
@@ -155,9 +167,8 @@ impl Lexer {
     }
 }
 
-impl Iterator for Lexer {
+impl<'a> Iterator for Tokens<'a> {
     type Item = Token;
-
     fn next(&mut self) -> Option<Self::Item> {
         self.next_token()
     }
@@ -170,14 +181,14 @@ mod tests {
 
     #[test]
     fn test_lex_parens() {
-        let tokens: Vec<Token> = Lexer::new("(())#").collect();
+        let tokens: Vec<Token> = Lexer::new("(())#").tokens().collect();
         let expected = vec![LeftParen, LeftParen, RightParen, RightParen, Illegal];
         assert_eq!(tokens, expected);
     }
 
     #[test]
     fn test_lex_ident() {
-        let tokens: Vec<Token> = Lexer::new("foo(bar_foo").collect();
+        let tokens: Vec<Token> = Lexer::new("foo(bar_foo").tokens().collect();
         let expected = vec![
             Ident(String::from("foo")),
             LeftParen,
@@ -188,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_lex_keyword() {
-        let tokens: Vec<Token> = Lexer::new("let foo letbar").collect();
+        let tokens: Vec<Token> = Lexer::new("let foo letbar").tokens().collect();
         let expected = vec![
             Let,
             Ident(String::from("foo")),
@@ -199,14 +210,14 @@ mod tests {
 
     #[test]
     fn test_lex_int() {
-        let tokens: Vec<Token> = Lexer::new("let 1234a").collect();
+        let tokens: Vec<Token> = Lexer::new("let 1234a").tokens().collect();
         let expected = vec![Let, Int(String::from("1234")), Ident(String::from("a"))];
         assert_eq!(tokens, expected);
     }
 
     #[test]
     fn test_lex_two_char_tokens() {
-        let tokens: Vec<Token> = Lexer::new("3 != 3 == !4").collect();
+        let tokens: Vec<Token> = Lexer::new("3 != 3 == !4").tokens().collect();
         let expected = vec![
             Int(String::from("3")),
             NotEqual,
