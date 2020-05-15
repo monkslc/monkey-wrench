@@ -40,6 +40,40 @@ pub enum Token {
     True,
 }
 
+impl Token {
+    pub fn variant(&self) -> String {
+        match self {
+            Token::Assign => String::from("Assign"),
+            Token::Asterik => String::from("Asterik"),
+            Token::Bang => String::from("Bang"),
+            Token::Comma => String::from("Comma"),
+            Token::Else => String::from("Else"),
+            Token::Equal => String::from("Equal"),
+            Token::NotEqual => String::from("NotEqual"),
+            Token::False => String::from("False"),
+            Token::Fn => String::from("Fn"),
+            Token::GreaterThan => String::from("GreaterThan"),
+            Token::Ident(_) => String::from("Ident"),
+            Token::If => String::from("If"),
+            Token::Illegal => String::from("Illegal"),
+            Token::Int(_) => String::from("Int"),
+            Token::LeftBrace => String::from("LeftBrace"),
+            Token::LeftParen => String::from("LeftParen"),
+            Token::LessThan => String::from("LessThan"),
+            Token::Let => String::from("Let"),
+            Token::Minus => String::from("Minus"),
+            Token::Plus => String::from("Plus"),
+            Token::Return => String::from("Return"),
+            Token::RightBrace => String::from("RightBrace"),
+            Token::RightParen => String::from("RightParen"),
+            Token::Semi => String::from("Semi"),
+            Token::Slash => String::from("Slash"),
+            Token::True => String::from("True"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Lexer {
     chars: Vec<char>,
 }
@@ -59,6 +93,7 @@ impl Lexer {
     }
 }
 
+#[derive(Debug)]
 pub struct Tokens<'a> {
     chars: &'a Vec<char>,
     current_index: usize,
