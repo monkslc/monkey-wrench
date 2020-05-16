@@ -12,22 +12,22 @@ pub enum Statement {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Boolean(bool),
+    Call(Box<Expression>, Vec<Expression>),
+    Fn(Vec<Ident>, Vec<Statement>),
     Ident(String),
+    If(Box<Expression>, Vec<Statement>, Vec<Statement>),
     Infix(Box<Expression>, Token, Box<Expression>),
     Int(isize),
     Prefix(Token, Box<Expression>),
-    If(Box<Expression>, Vec<Statement>, Vec<Statement>),
-    Fn(Vec<Ident>, Vec<Statement>),
-    Call(Box<Expression>, Vec<Expression>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Ident {
-    value: String,
+    pub value: String,
 }
 
 impl Ident {
-    fn new(value: String) -> Self {
+    pub fn new(value: String) -> Self {
         Ident { value }
     }
 }

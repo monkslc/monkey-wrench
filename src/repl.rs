@@ -1,6 +1,6 @@
 use std::io::{self, BufRead, Write};
 
-use crate::{lexer::Lexer, parser::Parser};
+use crate::{eval::Eval, lexer::Lexer, parser::Parser};
 
 pub fn start() -> Result<(), io::Error> {
     let mut stdout = io::stdout();
@@ -8,6 +8,7 @@ pub fn start() -> Result<(), io::Error> {
     let mut stdin = stdin.lock();
 
     let mut input = String::new();
+    let mut e = Eval::new();
     loop {
         print!(">> ");
         stdout.flush()?;
@@ -20,9 +21,14 @@ pub fn start() -> Result<(), io::Error> {
                 let (statements, errors): (Vec<_>, Vec<_>) =
                     parser.statements().partition(Result::is_ok);
                 let statements = statements.into_iter().map(|x| x.unwrap());
-                let errors = errors.into_iter().map(|x| x.unwrap_err());
-                println!("{:?}", statements);
-                println!("{:?}", errors);
+                let errors: Vec<String> = errors.into_iter().map(|x| x.unwrap_err()).collect();
+                if errors.len() > 0 {
+                    println!("Uh oh there were errors!\n{:?}", errors);
+                    continue;
+                }
+
+                let result = e.eval(statements);
+                println!("{:?}", result);
             }
         }
         input.clear();
