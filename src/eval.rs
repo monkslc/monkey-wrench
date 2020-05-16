@@ -12,6 +12,8 @@ pub enum Object {
     Fn(Vec<Ident>, Vec<Statement>),
     Int(isize),
     Null,
+    Str(String),
+    BuiltInFn(fn(Vec<Object>) -> Object),
 }
 
 impl Object {
@@ -32,6 +34,7 @@ impl Object {
     fn add(&self, b: &Object) -> Object {
         match (self, b) {
             (Object::Int(a), Object::Int(b)) => Object::Int(a + b),
+            (Object::Str(a), Object::Str(b)) => Object::Str(format!("{}{}", a, b)),
             (o, p) => Object::Error(format!("'+' cannot be applied to {:?} and {:?}", o, p)),
         }
     }
@@ -61,6 +64,7 @@ impl Object {
         match self {
             Object::Int(val) if *val != 0 => true,
             Object::Boolean(true) => true,
+            Object::Str(val) if val.len() != 0 => true,
             _ => false,
         }
     }
@@ -76,7 +80,9 @@ impl From<Environment> for Eval {
 
 impl Eval {
     pub fn new() -> Self {
-        Eval(Rc::new(RefCell::new(Environment::new())))
+        let mut env = Environment::new();
+        env.set(String::from("len"), Object::BuiltInFn(built_in_len));
+        Eval(Rc::new(RefCell::new(env)))
     }
 
     fn assign_let(&mut self, ident: String, expr: Expression) {
@@ -144,6 +150,7 @@ impl Eval {
             Expression::If(expr, consequent, alt) => self.eval_if(*expr, consequent, alt),
             Expression::Fn(params, body) => Object::Fn(params, body),
             Expression::Call(expr, args) => self.eval_call_expr(*expr, args),
+            Expression::Str(val) => Object::Str(val),
         }
     }
 
@@ -178,6 +185,13 @@ impl Eval {
                         env.set(arg.value.clone(), self.eval_expression(expr))
                     });
                     Eval::from(env).eval(body.into_iter())
+                }
+                Some(Object::BuiltInFn(func)) => {
+                    let args = args
+                        .into_iter()
+                        .map(|arg| self.eval_expression(arg))
+                        .collect();
+                    func(args)
                 }
                 _ => Object::Null,
             },
@@ -229,6 +243,14 @@ impl Environment {
 
     fn set(&mut self, var: String, val: Object) {
         self.store.insert(var, val);
+    }
+}
+
+fn built_in_len(args: Vec<Object>) -> Object {
+    match args.get(0) {
+        Some(Object::Str(val)) => Object::Int(val.len() as isize),
+        Some(t) => Object::Error(format!("Invalid argument to len: {:?}", t)),
+        None => Object::Error(format!("Pass an arg to len")),
     }
 }
 
@@ -479,6 +501,36 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Int(7);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_strings() {
+        let input = r#"
+            if 'Hi' {
+              'hello' + ' ' + 'world'
+            }
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Str(String::from("hello world"));
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_len() {
+        let input = r#"
+            len('12345');
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(5);
         assert_eq!(result, expected);
     }
 }

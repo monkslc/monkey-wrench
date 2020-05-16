@@ -37,6 +37,7 @@ pub enum Token {
     RightParen,
     Semi,
     Slash,
+    Str(String),
     True,
 }
 
@@ -68,6 +69,7 @@ impl Token {
             Token::RightParen => String::from("RightParen"),
             Token::Semi => String::from("Semi"),
             Token::Slash => String::from("Slash"),
+            Token::Str(_) => String::from("String"),
             Token::True => String::from("True"),
         }
     }
@@ -195,6 +197,17 @@ impl<'a> Tokens<'a> {
                 });
                 Some(Token::Int(token))
             }
+            Some('\'') => match self.take_char() {
+                Some('\'') => Some(Token::Str(String::new())),
+                Some(ch) => {
+                    let token = Some(Token::Str(String::from(
+                        self.take_while(ch, |ch| ch != '\''),
+                    )));
+                    self.take_char();
+                    token
+                }
+                None => Some(Token::Illegal),
+            },
             Some(_) => Some(Token::Illegal),
             _ => None,
         };
@@ -261,6 +274,13 @@ mod tests {
             Bang,
             Int(String::from("4")),
         ];
+        assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_string() {
+        let tokens: Vec<Token> = Lexer::new("'Hello World'").tokens().collect();
+        let expected = vec![Str(String::from("Hello World"))];
         assert_eq!(tokens, expected);
     }
 }

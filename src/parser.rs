@@ -19,6 +19,7 @@ pub enum Expression {
     Infix(Box<Expression>, Token, Box<Expression>),
     Int(isize),
     Prefix(Token, Box<Expression>),
+    Str(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -165,6 +166,7 @@ impl<'a> Statements<'a> {
             Token::LeftParen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
             Token::Fn => self.parse_fn_expression(),
+            Token::Str(val) => Ok(Expression::Str(val)),
             _ => Err(format!(
                 "Token: {:?} lead you here, but I can't parse that",
                 token
@@ -666,6 +668,23 @@ mod tests {
                 )),
             ))),
         ];
+
+        assert_eq!(statements, expected);
+    }
+
+    #[test]
+    fn test_string() {
+        let input = r#"
+            let x = 'Hello';
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Vec<Result<Statement, String>> = parser.statements().collect();
+
+        let expected = vec![Ok(Statement::Let(
+            Ident::new(String::from("x")),
+            Expression::Str(String::from("Hello")),
+        ))];
 
         assert_eq!(statements, expected);
     }
