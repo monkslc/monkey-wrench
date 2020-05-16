@@ -11,6 +11,7 @@ pub enum Statement {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
+    Array(Vec<Expression>),
     Boolean(bool),
     Call(Box<Expression>, Vec<Expression>),
     Fn(Vec<Ident>, Vec<Statement>),
@@ -164,6 +165,7 @@ impl<'a> Statements<'a> {
             Token::True => Ok(Expression::Boolean(true)),
             Token::False => Ok(Expression::Boolean(false)),
             Token::LeftParen => self.parse_grouped_expression(),
+            Token::LeftSq => self.parse_array().map(|elem| Expression::Array(elem)),
             Token::If => self.parse_if_expression(),
             Token::Fn => self.parse_fn_expression(),
             Token::Str(val) => Ok(Expression::Str(val)),
@@ -219,6 +221,21 @@ impl<'a> Statements<'a> {
                 }
             }
             None => Err(String::from("Uhhhh, you need something here")),
+        }
+    }
+
+    fn parse_array(&mut self) -> Result<Vec<Expression>, String> {
+        let mut elements: Vec<Expression> = Vec::new();
+        loop {
+            match self.lexer.next() {
+                Some(Token::Comma) => (),
+                Some(Token::RightSq) => break Ok(elements),
+                Some(t) => match self.parse_expression(t, OperatorPrecedence::Lowest) {
+                    Ok(expr) => elements.push(expr),
+                    Err(e) => break Err(e),
+                },
+                _ => break Err(String::from("Invalid eoi")),
+            };
         }
     }
 
@@ -684,6 +701,26 @@ mod tests {
         let expected = vec![Ok(Statement::Let(
             Ident::new(String::from("x")),
             Expression::Str(String::from("Hello")),
+        ))];
+
+        assert_eq!(statements, expected);
+    }
+
+    #[test]
+    fn test_array() {
+        let input = r#"
+            let x = [1, x];
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Vec<Result<Statement, String>> = parser.statements().collect();
+
+        let expected = vec![Ok(Statement::Let(
+            Ident::new(String::from("x")),
+            Expression::Array(vec![
+                Expression::Int(1),
+                Expression::Ident(String::from("x")),
+            ]),
         ))];
 
         assert_eq!(statements, expected);

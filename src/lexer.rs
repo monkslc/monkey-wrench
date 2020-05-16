@@ -18,7 +18,6 @@ pub enum Token {
     Comma,
     Else,
     Equal,
-    NotEqual,
     False,
     Fn,
     GreaterThan,
@@ -28,13 +27,16 @@ pub enum Token {
     Int(String),
     LeftBrace,
     LeftParen,
+    LeftSq,
     LessThan,
     Let,
     Minus,
+    NotEqual,
     Plus,
     Return,
     RightBrace,
     RightParen,
+    RightSq,
     Semi,
     Slash,
     Str(String),
@@ -60,6 +62,7 @@ impl Token {
             Token::Int(_) => String::from("Int"),
             Token::LeftBrace => String::from("LeftBrace"),
             Token::LeftParen => String::from("LeftParen"),
+            Token::LeftSq => String::from("LeftSq"),
             Token::LessThan => String::from("LessThan"),
             Token::Let => String::from("Let"),
             Token::Minus => String::from("Minus"),
@@ -67,6 +70,7 @@ impl Token {
             Token::Return => String::from("Return"),
             Token::RightBrace => String::from("RightBrace"),
             Token::RightParen => String::from("RightParen"),
+            Token::RightSq => String::from("RightSq"),
             Token::Semi => String::from("Semi"),
             Token::Slash => String::from("Slash"),
             Token::Str(_) => String::from("String"),
@@ -165,6 +169,8 @@ impl<'a> Tokens<'a> {
             Some('>') => Some(Token::GreaterThan),
             Some('{') => Some(Token::LeftBrace),
             Some('}') => Some(Token::RightBrace),
+            Some('[') => Some(Token::LeftSq),
+            Some(']') => Some(Token::RightSq),
             Some('=') => {
                 if let Some('=') = self.take_char_if(&|ch| ch == '=') {
                     Some(Token::Equal)
@@ -281,6 +287,19 @@ mod tests {
     fn test_string() {
         let tokens: Vec<Token> = Lexer::new("'Hello World'").tokens().collect();
         let expected = vec![Str(String::from("Hello World"))];
+        assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_array() {
+        let tokens: Vec<Token> = Lexer::new("[a, 5]").tokens().collect();
+        let expected = vec![
+            LeftSq,
+            Ident(String::from("a")),
+            Comma,
+            Int(String::from("5")),
+            RightSq,
+        ];
         assert_eq!(tokens, expected);
     }
 }

@@ -7,13 +7,14 @@ use crate::parser::{Expression, Ident, Statement};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
+    Array(Vec<Object>),
     Boolean(bool),
+    BuiltInFn(fn(Vec<Object>) -> Object),
     Error(String),
     Fn(Vec<Ident>, Vec<Statement>),
     Int(isize),
     Null,
     Str(String),
-    BuiltInFn(fn(Vec<Object>) -> Object),
 }
 
 impl Object {
@@ -151,6 +152,12 @@ impl Eval {
             Expression::Fn(params, body) => Object::Fn(params, body),
             Expression::Call(expr, args) => self.eval_call_expr(*expr, args),
             Expression::Str(val) => Object::Str(val),
+            Expression::Array(elements) => Object::Array(
+                elements
+                    .into_iter()
+                    .map(|e| self.eval_expression(e))
+                    .collect(),
+            ),
         }
     }
 
@@ -531,6 +538,20 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Int(5);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_array() {
+        let input = r#"
+            [1, 'hey'];
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Array(vec![Object::Int(1), Object::Str(String::from("hey"))]);
         assert_eq!(result, expected);
     }
 }
