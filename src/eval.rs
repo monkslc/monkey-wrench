@@ -1,6 +1,4 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, convert::TryFrom, rc::Rc};
 
 use crate::lexer::Token;
 use crate::parser::{Expression, Ident, Statement};
@@ -158,6 +156,7 @@ impl Eval {
                     .map(|e| self.eval_expression(e))
                     .collect(),
             ),
+            Expression::Index(expr, idx) => self.eval_index(*expr, *idx),
         }
     }
 
@@ -212,6 +211,23 @@ impl Eval {
                 }
                 _ => Object::Error(String::from("Your IIFE seems to have failed")),
             },
+        }
+    }
+
+    fn eval_index(&mut self, expr: Expression, idx: Expression) -> Object {
+        match (self.eval_expression(expr), self.eval_expression(idx)) {
+            (Object::Array(elems), Object::Int(idx)) => match usize::try_from(idx) {
+                Ok(idx) => elems.get(idx).map(|o| o.clone()).unwrap_or(Object::Null),
+                Err(_) => Object::Error(format!("Can't index with that: {}", idx)),
+            },
+            (Object::Str(val), Object::Int(idx)) => match usize::try_from(idx) {
+                Ok(idx) => match val.chars().nth(idx) {
+                    Some(ch) => Object::Str(ch.to_string()),
+                    None => Object::Null,
+                },
+                Err(_) => Object::Error(format!("Can't index with that: {}", idx)),
+            },
+            _ => Object::Null,
         }
     }
 }
@@ -552,6 +568,20 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Array(vec![Object::Int(1), Object::Str(String::from("hey"))]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_index() {
+        let input = r#"
+           [[10, 2][0], 'Hello'[1]];
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Array(vec![Object::Int(10), Object::Str(String::from("e"))]);
         assert_eq!(result, expected);
     }
 }

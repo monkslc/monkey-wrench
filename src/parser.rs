@@ -17,6 +17,7 @@ pub enum Expression {
     Fn(Vec<Ident>, Vec<Statement>),
     Ident(String),
     If(Box<Expression>, Vec<Statement>, Vec<Statement>),
+    Index(Box<Expression>, Box<Expression>),
     Infix(Box<Expression>, Token, Box<Expression>),
     Int(isize),
     Prefix(Token, Box<Expression>),
@@ -342,32 +343,55 @@ impl<'a> Statements<'a> {
         expr: Expression,
     ) -> Result<Expression, String> {
         match self.lexer.peek() {
-            Some(next_token) => match next_token {
-                Token::Plus
-                | Token::Minus
-                | Token::Slash
-                | Token::Asterik
-                | Token::Equal
-                | Token::NotEqual
-                | Token::LessThan
-                | Token::GreaterThan
-                    if get_token_precedence(next_token) > precedence =>
-                {
-                    let next_token = self.lexer.next().unwrap();
-                    match self.parse_infix(next_token, expr) {
-                        Ok(new_expr) => self.recursive_infix_parse(precedence, new_expr),
-                        Err(e) => Err(e),
+            Some(next_token) => {
+                match next_token {
+                    Token::Plus
+                    | Token::Minus
+                    | Token::Slash
+                    | Token::Asterik
+                    | Token::Equal
+                    | Token::NotEqual
+                    | Token::LessThan
+                    | Token::GreaterThan
+                        if get_token_precedence(next_token) > precedence =>
+                    {
+                        let next_token = self.lexer.next().unwrap();
+                        match self.parse_infix(next_token, expr) {
+                            Ok(new_expr) => self.recursive_infix_parse(precedence, new_expr),
+                            Err(e) => Err(e),
+                        }
                     }
-                }
-                Token::LeftParen => {
-                    self.lexer.next().unwrap();
-                    match self.parse_call_expression(expr) {
-                        Ok(new_expr) => self.recursive_infix_parse(precedence, new_expr),
-                        Err(e) => Err(e),
+                    Token::LeftSq => {
+                        self.lexer.next().unwrap();
+                        match self.lexer.next() {
+                            Some(token) => {
+                                match self.parse_expression(token, OperatorPrecedence::Lowest) {
+                                Ok(idx_expr) => match self.lexer.peek() {
+                                    Some(Token::RightSq) => {
+                                        self.lexer.next().unwrap();
+                                        Ok(Expression::Index(Box::new(expr), Box::new(idx_expr)))
+                                    }
+                                    Some(t) => Err(format!("{:?} is not a valid end for your index", t)),
+                                    _ => Err(String::from("End of file was reached for an infix index operator???"))
+                                },
+                                Err(e) => Err(e),
+                            }
+                            }
+                            None => Err(String::from(
+                                "That doesn't look like an index function to me",
+                            )),
+                        }
                     }
+                    Token::LeftParen => {
+                        self.lexer.next().unwrap();
+                        match self.parse_call_expression(expr) {
+                            Ok(new_expr) => self.recursive_infix_parse(precedence, new_expr),
+                            Err(e) => Err(e),
+                        }
+                    }
+                    _ => Ok(expr),
                 }
-                _ => Ok(expr),
-            },
+            }
             None => Ok(expr),
         }
     }
@@ -722,6 +746,23 @@ mod tests {
                 Expression::Ident(String::from("x")),
             ]),
         ))];
+
+        assert_eq!(statements, expected);
+    }
+
+    #[test]
+    fn test_index() {
+        let input = r#"
+            x[1];
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Vec<Result<Statement, String>> = parser.statements().collect();
+
+        let expected = vec![Ok(Statement::Expression(Expression::Index(
+            Box::new(Expression::Ident(String::from("x"))),
+            Box::new(Expression::Int(1)),
+        )))];
 
         assert_eq!(statements, expected);
     }
