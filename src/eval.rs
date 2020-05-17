@@ -11,7 +11,7 @@ pub enum Object {
     Boolean(bool),
     BuiltInFn(fn(Vec<Object>) -> Object),
     Error(String),
-    Fn(Vec<Ident>, Vec<Statement>),
+    Fn(Vec<Ident>, Vec<Statement>, Rc<RefCell<Environment>>),
     Int(isize),
     Null,
     Return(Box<Object>),
@@ -77,6 +77,12 @@ pub struct Eval(Rc<RefCell<Environment>>);
 impl From<Environment> for Eval {
     fn from(env: Environment) -> Self {
         Eval(Rc::new(RefCell::new(env)))
+    }
+}
+
+impl From<Rc<RefCell<Environment>>> for Eval {
+    fn from(env: Rc<RefCell<Environment>>) -> Self {
+        Eval(env)
     }
 }
 
@@ -189,7 +195,7 @@ impl Eval {
                 _ => Object::Null,
             },
             Expression::If(expr, consequent, alt) => self.eval_if(*expr, consequent, alt),
-            Expression::Fn(params, body) => Object::Fn(params, body),
+            Expression::Fn(params, body) => Object::Fn(params, body, Rc::clone(&self.0)),
             Expression::Call(expr, args) => self.eval_call_expr(*expr, args),
             Expression::Str(val) => Object::Str(val),
             Expression::Array(elements) => Object::Array(
@@ -228,11 +234,11 @@ impl Eval {
         let outer_env = outer.borrow();
         match expr {
             Expression::Ident(id) => match outer_env.get(&id) {
-                Some(Object::Fn(params, body)) => {
-                    let mut env = Environment::from(Rc::clone(&outer));
-                    args.into_iter().zip(params.iter()).for_each(|(expr, arg)| {
+                Some(Object::Fn(params, body, env)) => {
+                    let mut env = Environment::from(Rc::clone(&env));
+                    for (expr, arg) in args.into_iter().zip(params.iter()) {
                         env.set(arg.value.clone(), self.eval_expression(expr))
-                    });
+                    }
                     Eval::from(env).eval(body.into_iter())
                 }
                 Some(Object::BuiltInFn(func)) => {
@@ -245,11 +251,11 @@ impl Eval {
                 _ => Object::Null,
             },
             e => match self.eval_expression(e) {
-                Object::Fn(params, body) => {
-                    let mut env = Environment::from(Rc::clone(&outer));
-                    args.into_iter().zip(params.iter()).for_each(|(expr, arg)| {
+                Object::Fn(params, body, env) => {
+                    let mut env = Environment::from(Rc::clone(&env));
+                    for (expr, arg) in args.into_iter().zip(params.iter()) {
                         env.set(arg.value.clone(), self.eval_expression(expr))
-                    });
+                    }
                     Eval::from(env).eval(body.into_iter())
                 }
                 _ => Object::Error(String::from("Your IIFE seems to have failed")),
@@ -275,6 +281,7 @@ impl Eval {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Environment {
     pub store: HashMap<String, Object>,
     pub parent: Option<Rc<RefCell<Environment>>>,
@@ -532,33 +539,6 @@ mod tests {
     }
 
     #[test]
-    fn test_function_obj() {
-        let input = r#"
-            let add = fn x, y {
-                x + y
-            };
-        "#;
-
-        let parser = Parser::new(Lexer::new(input));
-        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
-        let statements = statements.unwrap();
-        let mut eval = Eval::new();
-        eval.eval(statements.into_iter());
-
-        let env = eval.0.borrow();
-        let var = env.get("add");
-        let expected = Object::Fn(
-            vec![Ident::new(String::from("x")), Ident::new(String::from("y"))],
-            vec![Statement::Expression(Expression::Infix(
-                Box::new(Expression::Ident(String::from("x"))),
-                Token::Plus,
-                Box::new(Expression::Ident(String::from("y"))),
-            ))],
-        );
-        assert_eq!(var, Some(expected));
-    }
-
-    #[test]
     fn test_call_expr() {
         let input = r#"
             let add = fn x, y {
@@ -731,6 +711,26 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Int(3);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_partial() {
+        let input = r#"
+            let new_adder = fn x {
+                fn n {
+                    x + n;
+                }
+            }
+            let add_three = new_adder(3);
+            add_three(7);
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(10);
         assert_eq!(result, expected);
     }
 }

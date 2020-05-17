@@ -20,31 +20,39 @@ let decimal_to_numeral_simple = fn number {
 	''
 }
 
-let decimal_to_numeral_ugly = fn number {
-	let reducer = fn acc, decimal, i {
-		if number - decimal > -1 {
-			let numeral = numerals[i];
-			return numeral + decimal_to_numeral_ugly(number - decimal)
+let decimal_to_numeral_2 = fn number {
+	let _decimal_to_numeral = fn remainder, decimal, numeral, next {
+		if remainder - decimal > -1 {
+			numeral + _decimal_to_numeral(remainder - decimal, decimal, numeral, next)
+		} else {
+			next(remainder)
 		}
-		return acc + ''
 	}
-	reduce('', decimals, reducer)
+
+	let _call = fn decimal, numeral, next {
+		fn remainder { _decimal_to_numeral(remainder, decimal, numeral, next) }
+	}
+
+	_call(10, 'X', _call(5, 'V', _call(4, 'IV', _call(1, 'I', fn { '' }))))(number)
+}
+
+let decimal_to_numeral_3 = fn number {
+	let _decimal_to_numeral = fn remainder, i {
+		if i == len(decimals) { return '' }
+
+		let decimal = decimals[i];
+		let numeral = numerals[i];
+		if remainder - decimal > -1 {
+			numeral + _decimal_to_numeral(remainder - decimal, i)
+		} else {
+			_decimal_to_numeral(remainder, i+1)
+		}
+	}
+
+	_decimal_to_numeral(number, 0)
 }
 
 
-let reduce = fn init, arr, reducer {
-	let _reduce = fn i {
-		if i == len(arr) {
-			return init
-		}
-
-		reducer(_reduce(i + 1), arr[i], i)
-	}
-
-	_reduce(0)
-}
-
-
-puts(reduce(0, [1, 2, 3], fn x, y {x + y}))
-puts(decimal_to_numeral_ugly(19))
 puts(decimal_to_numeral_simple(19))
+puts(decimal_to_numeral_2(49))
+puts(decimal_to_numeral_3(49))
