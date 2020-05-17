@@ -1,0 +1,50 @@
+let decimals = [10, 5, 4, 1];
+let numerals = ['X', 'V', 'IV', 'I'];
+
+let decimal_to_numeral_simple = fn number {
+	if number - 10 > -1 {
+		return 'X' + decimal_to_numeral_simple(number - 10)
+	}
+
+	if number - 5 > -1 {
+		return 'V' + decimal_to_numeral_simple(number - 5)
+	}
+
+	if number - 4 > -1 {
+		return 'IV' + decimal_to_numeral_simple(number - 4)
+	}
+
+	if number - 1 > -1 {
+		return 'I' + decimal_to_numeral_simple(number - 1)
+	}
+	''
+}
+
+let decimal_to_numeral_ugly = fn number {
+	let reducer = fn acc, decimal, i {
+		if number - decimal > -1 {
+			let numeral = numerals[i];
+			return numeral + decimal_to_numeral_ugly(number - decimal)
+		}
+		return acc + ''
+	}
+	reduce('', decimals, reducer)
+}
+
+
+let reduce = fn init, arr, reducer {
+	let _reduce = fn i {
+		if i == len(arr) {
+			return init
+		}
+
+		reducer(_reduce(i + 1), arr[i], i)
+	}
+
+	_reduce(0)
+}
+
+
+puts(reduce(0, [1, 2, 3], fn x, y, i {x + y}))
+puts(decimal_to_numeral_ugly(19))
+puts(decimal_to_numeral_simple(19))

@@ -1,0 +1,11 @@
+let add = fn x, y {
+	x + y
+}
+
+add(3, 2)
+
+let dumb = fn {
+	3 + 2
+}
+
+dumb()

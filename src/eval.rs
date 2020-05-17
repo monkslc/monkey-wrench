@@ -1,7 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, convert::TryFrom, rc::Rc};
 
-use crate::lexer::Token;
-use crate::parser::{Expression, Ident, Statement};
+use crate::{
+    lexer::{Lexer, Token},
+    parser::{Expression, Ident, Parser, Statement},
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
@@ -12,6 +14,7 @@ pub enum Object {
     Fn(Vec<Ident>, Vec<Statement>),
     Int(isize),
     Null,
+    Return(Box<Object>),
     Str(String),
 }
 
@@ -81,7 +84,23 @@ impl Eval {
     pub fn new() -> Self {
         let mut env = Environment::new();
         env.set(String::from("len"), Object::BuiltInFn(built_in_len));
+        env.set(String::from("puts"), Object::BuiltInFn(built_in_puts));
         Eval(Rc::new(RefCell::new(env)))
+    }
+
+    pub fn run(code: &str) -> Result<Object, String> {
+        let lexer = Lexer::new(&code);
+        let parser = Parser::new(lexer);
+        let (statements, errors): (Vec<_>, Vec<_>) = parser.statements().partition(Result::is_ok);
+        let statements = statements.into_iter().map(|x| x.unwrap());
+        let errors: Vec<String> = errors.into_iter().map(|x| x.unwrap_err()).collect();
+        match errors.len() {
+            n if n > 0 => {
+                println!("Uh oh there were errors!\n{:?}", errors);
+                Err(format!("{} errors when parsing code", errors.len()))
+            }
+            _ => Ok(Eval::new().eval(statements)),
+        }
     }
 
     fn assign_let(&mut self, ident: String, expr: Expression) {
@@ -93,8 +112,31 @@ impl Eval {
         let mut result = Object::Null;
         for stmt in statements {
             result = match stmt {
-                Statement::Expression(expr) => self.eval_expression(expr),
+                Statement::Expression(expr) => match self.eval_expression(expr) {
+                    Object::Return(o) => return *o,
+                    o => o,
+                },
                 Statement::Return(expr) => return self.eval_expression(expr),
+                Statement::Let(Ident { value }, expr) => {
+                    self.assign_let(value, expr);
+                    result
+                }
+            }
+        }
+        result
+    }
+
+    pub fn eval_block<I: Iterator<Item = Statement>>(&mut self, block: I) -> Object {
+        let mut result = Object::Null;
+        for stmt in block {
+            result = match stmt {
+                Statement::Expression(expr) => match self.eval_expression(expr) {
+                    o @ Object::Return(_) => return o,
+                    o => o,
+                },
+                Statement::Return(expr) => {
+                    return Object::Return(Box::new(self.eval_expression(expr)));
+                }
                 Statement::Let(Ident { value }, expr) => {
                     self.assign_let(value, expr);
                     result
@@ -173,11 +215,12 @@ impl Eval {
         consequent: Vec<Statement>,
         alt: Vec<Statement>,
     ) -> Object {
-        if self.eval_expression(expr).truthy() {
-            Eval::from(Environment::from(Rc::clone(&self.0))).eval(consequent.into_iter())
+        let block = if self.eval_expression(expr).truthy() {
+            consequent
         } else {
-            Eval::from(Environment::from(Rc::clone(&self.0))).eval(alt.into_iter())
-        }
+            alt
+        };
+        Eval::from(Environment::from(Rc::clone(&self.0))).eval_block(block.into_iter())
     }
 
     fn eval_call_expr(&mut self, expr: Expression, args: Vec<Expression>) -> Object {
@@ -272,9 +315,15 @@ impl Environment {
 fn built_in_len(args: Vec<Object>) -> Object {
     match args.get(0) {
         Some(Object::Str(val)) => Object::Int(val.len() as isize),
+        Some(Object::Array(val)) => Object::Int(val.len() as isize),
         Some(t) => Object::Error(format!("Invalid argument to len: {:?}", t)),
         None => Object::Error(format!("Pass an arg to len")),
     }
+}
+
+fn built_in_puts(args: Vec<Object>) -> Object {
+    args.iter().for_each(|o| println!("{:?}", o));
+    Object::Null
 }
 
 #[cfg(test)]
@@ -582,6 +631,106 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Array(vec![Object::Int(10), Object::Str(String::from("e"))]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_nested_ifs() {
+        let input = r#"
+            if 10 {
+                if 1 {
+                    if 5 {
+                        return 5;
+                    }
+                    return 1;
+                }
+
+                return 10;
+            }
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(5);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_nested_fns() {
+        let input = r#"
+            let add = fn x, y {
+                return x + y
+            }
+
+            let sub = fn x, y {
+                return x - y
+            }
+
+            let nothing = fn x, y {
+                let add = fn a, b {
+                    return a + b
+                }
+                let sub = fn c, d {
+                    return c - d
+                }
+
+                sub(add(x, y), y)
+            }
+
+            nothing(5, 2)
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(5);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_recursive_fns() {
+        let input = r#"
+            let fact = fn n {
+                if n < 2 {
+                    return n;
+                }
+
+                return n*fact(n-1);
+            }
+
+            fact(5)
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(120);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_early_return() {
+        let input = r#"
+            let func = fn x {
+                if x - 10 > -1 {
+                    return func(x - 10)
+                }
+
+                return x
+            }
+
+            func(33);
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(3);
         assert_eq!(result, expected);
     }
 }

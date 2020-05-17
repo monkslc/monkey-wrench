@@ -1,0 +1,24 @@
+let for_each = fn arr, func {
+	let _for_each = fn i {
+		if i < len(arr) {
+			func(arr[i])
+			_for_each(i+1)
+		}
+	}
+	_for_each(0)
+}
+
+let reduce = fn init, arr, reducer {
+	let _reduce = fn i {
+		if i == len(arr) {
+			return init
+		}
+
+		reducer(_reduce(i + 1), arr[i], i)
+	}
+
+	_reduce(0)
+}
+
+for_each(['Hello', 'World'], fn x { puts(x) })
+puts(reduce(0, [1, 2, 3], fn x, y { x + y }))
