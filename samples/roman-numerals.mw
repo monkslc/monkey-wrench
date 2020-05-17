@@ -45,6 +45,6 @@ let reduce = fn init, arr, reducer {
 }
 
 
-puts(reduce(0, [1, 2, 3], fn x, y, i {x + y}))
+puts(reduce(0, [1, 2, 3], fn x, y {x + y}))
 puts(decimal_to_numeral_ugly(19))
 puts(decimal_to_numeral_simple(19))
