@@ -10,11 +10,12 @@ static KEYWORDS: phf::Map<&'static str, Token> = phf_map! {
     "return" => Token::Return,
 };
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub enum Token {
     Assign,
     Asterik,
     Bang,
+    Colon,
     Comma,
     Else,
     Equal,
@@ -49,6 +50,7 @@ impl Token {
             Token::Assign => String::from("Assign"),
             Token::Asterik => String::from("Asterik"),
             Token::Bang => String::from("Bang"),
+            Token::Colon => String::from("Colon"),
             Token::Comma => String::from("Comma"),
             Token::Else => String::from("Else"),
             Token::Equal => String::from("Equal"),
@@ -171,6 +173,7 @@ impl<'a> Tokens<'a> {
             Some('}') => Some(Token::RightBrace),
             Some('[') => Some(Token::LeftSq),
             Some(']') => Some(Token::RightSq),
+            Some(':') => Some(Token::Colon),
             Some('=') => {
                 if let Some('=') = self.take_char_if(&|ch| ch == '=') {
                     Some(Token::Equal)
@@ -300,6 +303,13 @@ mod tests {
             Int(String::from("5")),
             RightSq,
         ];
+        assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_colon() {
+        let tokens: Vec<Token> = Lexer::new("5: 4").tokens().collect();
+        let expected = vec![Int(String::from("5")), Colon, Int(String::from("4"))];
         assert_eq!(tokens, expected);
     }
 }

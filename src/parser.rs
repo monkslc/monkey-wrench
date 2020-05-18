@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::BTreeMap, collections::HashMap};
 
 use crate::lexer::{Lexer, Token, Tokens};
 
@@ -20,6 +20,7 @@ pub enum Expression {
     Index(Box<Expression>, Box<Expression>),
     Infix(Box<Expression>, Token, Box<Expression>),
     Int(isize),
+    Map(Vec<(Expression, Expression)>),
     Prefix(Token, Box<Expression>),
     Str(String),
 }
@@ -170,6 +171,7 @@ impl<'a> Statements<'a> {
             Token::If => self.parse_if_expression(),
             Token::Fn => self.parse_fn_expression(),
             Token::Str(val) => Ok(Expression::Str(val)),
+            Token::LeftBrace => self.parse_map(),
             _ => Err(format!(
                 "Token: {:?} lead you here, but I can't parse that",
                 token
@@ -330,6 +332,34 @@ impl<'a> Statements<'a> {
                 Some(Token::RightParen) => break Ok(args),
                 Some(t) => match self.parse_expression(t, OperatorPrecedence::Lowest) {
                     Ok(expr) => args.push(expr),
+                    Err(e) => break Err(e),
+                },
+                _ => break Err(String::from("Invalid eoi")),
+            };
+        }
+    }
+
+    fn parse_map(&mut self) -> Result<Expression, String> {
+        let mut pairs = Vec::new();
+        loop {
+            match self.lexer.next() {
+                Some(Token::Comma) => (),
+                Some(Token::RightBrace) => break Ok(Expression::Map(pairs)),
+                Some(t) => match self.parse_expression(t, OperatorPrecedence::Lowest) {
+                    Ok(key) => match self.lexer.next() {
+                        Some(Token::Colon) => match self.lexer.next() {
+                            Some(token) => {
+                                match self.parse_expression(token, OperatorPrecedence::Lowest) {
+                                    Ok(value) => pairs.push((key, value)),
+                                    Err(e) => break Err(e),
+                                }
+                            }
+                            None => break Err(String::from("Expected another token bet got eoi")),
+                        },
+                        _ => {
+                            break Err(String::from("Expected a : for the map but didn't get that"))
+                        }
+                    },
                     Err(e) => break Err(e),
                 },
                 _ => break Err(String::from("Invalid eoi")),
@@ -763,6 +793,23 @@ mod tests {
             Box::new(Expression::Ident(String::from("x"))),
             Box::new(Expression::Int(1)),
         )))];
+
+        assert_eq!(statements, expected);
+    }
+
+    #[test]
+    fn test_map() {
+        let input = r#"
+            {'one': 1, 2: 'two'}
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Vec<Result<Statement, String>> = parser.statements().collect();
+
+        let expected = vec![Ok(Statement::Expression(Expression::Map(vec![
+            (Expression::Str(String::from("one")), Expression::Int(1)),
+            (Expression::Int(2), Expression::Str(String::from("two"))),
+        ])))];
 
         assert_eq!(statements, expected);
     }

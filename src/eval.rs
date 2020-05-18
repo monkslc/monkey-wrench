@@ -13,6 +13,7 @@ pub enum Object {
     Error(String),
     Fn(Vec<Ident>, Vec<Statement>, Rc<RefCell<Environment>>),
     Int(isize),
+    Map(Vec<(Object, Object)>),
     Null,
     Return(Box<Object>),
     Str(String),
@@ -205,6 +206,7 @@ impl Eval {
                     .collect(),
             ),
             Expression::Index(expr, idx) => self.eval_index(*expr, *idx),
+            Expression::Map(pairs) => self.eval_map(pairs),
         }
     }
 
@@ -276,8 +278,24 @@ impl Eval {
                 },
                 Err(_) => Object::Error(format!("Can't index with that: {}", idx)),
             },
+            (Object::Map(pairs), o) => {
+                for (key, value) in pairs.into_iter() {
+                    if key == o {
+                        return value;
+                    }
+                }
+                Object::Null
+            }
             _ => Object::Null,
         }
+    }
+
+    fn eval_map(&mut self, pairs: Vec<(Expression, Expression)>) -> Object {
+        let pairs = pairs
+            .into_iter()
+            .map(|(key, val)| (self.eval_expression(key), self.eval_expression(val)))
+            .collect();
+        Object::Map(pairs)
     }
 }
 
@@ -731,6 +749,23 @@ mod tests {
 
         let result = Eval::new().eval(statements.unwrap().into_iter());
         let expected = Object::Int(10);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_map() {
+        let input = r#"
+            let map = {'one': 2, 'two': 1};
+            let one = map['one'];
+            let two = map['two']
+            one + two
+        "#;
+
+        let parser = Parser::new(Lexer::new(input));
+        let statements: Result<Vec<Statement>, String> = parser.statements().collect();
+
+        let result = Eval::new().eval(statements.unwrap().into_iter());
+        let expected = Object::Int(3);
         assert_eq!(result, expected);
     }
 }
