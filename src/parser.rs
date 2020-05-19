@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::BTreeMap, collections::HashMap};
+use std::cmp::Ordering;
 
 use crate::lexer::{Lexer, Token, Tokens};
 

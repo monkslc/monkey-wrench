@@ -232,36 +232,22 @@ impl Eval {
     }
 
     fn eval_call_expr(&mut self, expr: Expression, args: Vec<Expression>) -> Object {
-        let outer = Rc::clone(&self.0);
-        let outer_env = outer.borrow();
-        match expr {
-            Expression::Ident(id) => match outer_env.get(&id) {
-                Some(Object::Fn(params, body, env)) => {
-                    let mut env = Environment::from(Rc::clone(&env));
-                    for (expr, arg) in args.into_iter().zip(params.iter()) {
-                        env.set(arg.value.clone(), self.eval_expression(expr))
-                    }
-                    Eval::from(env).eval(body.into_iter())
+        match self.eval_expression(expr) {
+            Object::Fn(params, body, env) => {
+                let mut env = Environment::from(Rc::clone(&env));
+                for (expr, arg) in args.into_iter().zip(params.iter()) {
+                    env.set(arg.value.clone(), self.eval_expression(expr))
                 }
-                Some(Object::BuiltInFn(func)) => {
-                    let args = args
-                        .into_iter()
-                        .map(|arg| self.eval_expression(arg))
-                        .collect();
-                    func(args)
-                }
-                _ => Object::Null,
-            },
-            e => match self.eval_expression(e) {
-                Object::Fn(params, body, env) => {
-                    let mut env = Environment::from(Rc::clone(&env));
-                    for (expr, arg) in args.into_iter().zip(params.iter()) {
-                        env.set(arg.value.clone(), self.eval_expression(expr))
-                    }
-                    Eval::from(env).eval(body.into_iter())
-                }
-                _ => Object::Error(String::from("Your IIFE seems to have failed")),
-            },
+                Eval::from(env).eval(body.into_iter())
+            }
+            Object::BuiltInFn(func) => {
+                let args = args
+                    .into_iter()
+                    .map(|arg| self.eval_expression(arg))
+                    .collect();
+                func(args)
+            }
+            _ => Object::Null,
         }
     }
 
